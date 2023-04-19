@@ -1,0 +1,75 @@
+# Docker
+# Build and push an image to Azure Container Registry
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+- master
+
+resources:
+- repo: self
+
+name: '$(Build.BuildId)'
+
+variables:
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: 'c2d76085-ac61-4c1e-a79e-8e2221a343ab'
+  containerRegistry: 'juoudotacr.azurecr.io'
+  appImageRepository: 'demo-webapp'
+  apiImageRepository: 'demo-webapi'
+  appDockerfilePath: '$(Build.SourcesDirectory)/mywebapp/Dockerfile'
+  apiDockerfilePath: '$(Build.SourcesDirectory)/mywebapi/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: Build and push stage
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: Docker@2
+      displayName: Build Web App image to container registry
+      inputs:
+        command: build
+        repository: $(appImageRepository)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        dockerfile: $(appDockerfilePath)
+        arguments: '--build-arg CONTAINER_VERSION=$(tag)'
+        tags: |
+          $(tag)
+    - task: Docker@2
+      displayName: Push Web App image to container registry
+      inputs:
+        command: push
+        repository: $(appImageRepository)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+    - task: Docker@2
+      displayName: Build Web Api image to container registry
+      inputs:
+        command: build
+        repository: $(apiImageRepository)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        dockerfile: $(apiDockerfilePath)
+        arguments: '--build-arg CONTAINER_VERSION=$(tag)'
+        tags: |
+          $(tag)
+    - task: Docker@2
+      displayName: Push Web Api image to container registry
+      inputs:
+        command: push
+        repository: $(apiImageRepository)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+    - task: PublishBuildArtifacts@1
+      displayName: Publish Bicep
+      inputs:
+        ArtifactName: BicepFiles
+        PathtoPublish: '$(Build.SourcesDirectory)/Deploy'
